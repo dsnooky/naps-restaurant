@@ -1,14 +1,30 @@
-const CACHE="naps-cache-v1";
-const ASSETS=["./"];
+const CACHE_NAME = "naps-pos-v1";
 
-self.addEventListener("install",e=>{
- e.waitUntil(
-  caches.open(CACHE).then(c=>c.addAll(ASSETS))
- );
+const ASSETS = [
+  "./",
+  "./index.html",
+  "./manifest.json",
+  "./icon-192.png",
+  "./icon-512.png"
+];
+
+// Install
+self.addEventListener("install", event => {
+  event.waitUntil(
+    caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS))
+  );
 });
 
-self.addEventListener("fetch",e=>{
- e.respondWith(
-  caches.match(e.request).then(r=>r||fetch(e.request))
- );
+// Activate
+self.addEventListener("activate", event => {
+  event.waitUntil(self.clients.claim());
+});
+
+// Fetch (offline fallback)
+self.addEventListener("fetch", event => {
+  event.respondWith(
+    caches.match(event.request).then(response => {
+      return response || fetch(event.request);
+    })
+  );
 });
