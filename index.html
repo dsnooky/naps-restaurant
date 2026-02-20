@@ -57,102 +57,156 @@
 </div>
 
 <script>
-let foods = [
-  {id:1,name:"Chicken Inasal",price:120},
-  {id:2,name:"Pork Sisig",price:150},
-  {id:3,name:"Beef Tapa",price:140},
-  {id:4,name:"Halo-Halo",price:90}
+/* ==============================
+   CONFIGURATION (EDIT THESE)
+================================*/
+
+// ⭐ Example Philippine SMS API (Semaphore / Twilio etc)
+const SMS_API_URL = "https://api.semaphore.co/api/v4/messages"; // example
+const SMS_API_KEY = "YOUR_SMS_API_KEY"; // put real key
+
+// ⭐ GCash mock payment link (replace with real PayMongo / Xendit link)
+const GCASH_PAYMENT_LINK = "https://paymongo.link/YOUR_LINK";
+
+/* ==============================
+   DATA
+================================*/
+
+let foods=[
+{id:1,name:"Chicken Inasal",price:120},
+{id:2,name:"Pork Sisig",price:150},
+{id:3,name:"Beef Tapa",price:140},
+{id:4,name:"Halo-Halo",price:90}
 ];
 
 let cart=[];
+let orders=[]; // ⭐ MULTI ORDER DATABASE
 let payment=null;
-let order=null;
+let activeOrder=null;
 let status="Preparing";
 
+/* ==============================
+   MENU RENDER
+================================*/
 const menuDiv=document.getElementById('menu');
 foods.forEach(f=>{
-  menuDiv.innerHTML+=`<div class='bg-white p-4 rounded shadow flex justify-between'>
-  <div>${f.name}<br>₱${f.price}</div>
-  <button onclick='addToCart(${f.id})' class='bg-blue-500 text-white px-3 rounded'>Add</button></div>`;
+menuDiv.innerHTML+=`<div class='bg-white p-4 rounded shadow flex justify-between'>
+<div>${f.name}<br>₱${f.price}</div>
+<button onclick='addToCart(${f.id})' class='bg-blue-500 text-white px-3 rounded'>Add</button></div>`;
 });
 
 function showPage(p){
-  ['home','menu','cart','receipt','admin'].forEach(id=>document.getElementById(id).classList.add('hidden'));
-  document.getElementById(p).classList.remove('hidden');
+['home','menu','cart','receipt','admin'].forEach(id=>document.getElementById(id).classList.add('hidden'));
+document.getElementById(p).classList.remove('hidden');
 }
 
 function addToCart(id){
-  const item=foods.find(f=>f.id===id);
-  cart.push(item);
-  document.getElementById('cartCount').innerText=cart.length;
-  renderCart();
+const item=foods.find(f=>f.id===id);
+cart.push(item);
+document.getElementById('cartCount').innerText=cart.length;
+renderCart();
 }
 
 function renderCart(){
-  let div=document.getElementById('cartItems');
-  div.innerHTML='';
-  let total=0;
-  cart.forEach(i=>{div.innerHTML+=`${i.name} - ₱${i.price}<br>`; total+=i.price});
-  document.getElementById('total').innerText=total;
+let div=document.getElementById('cartItems');
+div.innerHTML='';
+let total=0;
+cart.forEach(i=>{div.innerHTML+=`${i.name} - ₱${i.price}<br>`; total+=i.price});
+document.getElementById('total').innerText=total;
 }
 
 function selectPayment(p){
-  payment=p;
-  gcashBtn.classList.remove('bg-green-400');
-  codBtn.classList.remove('bg-green-400');
-  if(p==='GCash') gcashBtn.classList.add('bg-green-400');
-  else codBtn.classList.add('bg-green-400');
+payment=p;
+gcashBtn.classList.remove('bg-green-400');
+codBtn.classList.remove('bg-green-400');
+if(p==='GCash') gcashBtn.classList.add('bg-green-400');
+else codBtn.classList.add('bg-green-400');
 }
 
+/* ==============================
+   SMS SENDING
+================================*/
+async function sendSMS(phone,message){
+try{
+await fetch(SMS_API_URL,{
+method:"POST",
+headers:{"Content-Type":"application/json"},
+body:JSON.stringify({apikey:SMS_API_KEY,number:phone,message})
+});
+}catch(e){console.log("SMS failed",e)}
+}
+
+/* ==============================
+   ORDER FLOW
+================================*/
 function placeOrder(){
-  const phone=document.getElementById('phone').value;
-  const address=document.getElementById('address').value;
-  const total=document.getElementById('total').innerText;
+const phone=document.getElementById('phone').value;
+const address=document.getElementById('address').value;
+const total=document.getElementById('total').innerText;
+if(!phone||!address||!payment){alert('Fill all fields');return}
 
-  if(!phone||!address||!payment){alert('Fill all fields');return}
+activeOrder={
+id:Date.now(),phone,address,payment,total,items:[...cart],status:"Preparing"};
+orders.push(activeOrder);
 
-  order={phone,address,payment,total,items:[...cart]};
-  cart=[];
-  renderCart();
-  document.getElementById('cartCount').innerText=0;
-  showReceipt();
-  simulateStatus();
+if(payment==='GCash'){
+window.open(GCASH_PAYMENT_LINK,'_blank');
 }
 
+sendSMS(phone,`NAP'S Restaurant: Order received. Preparing.`);
+
+cart=[];
+renderCart();
+document.getElementById('cartCount').innerText=0;
+showReceipt();
+renderAdmin();
+}
+
+/* ==============================
+   RECEIPT
+================================*/
 function showReceipt(){
-  showPage('receipt');
-  receipt.innerHTML=`<div class='bg-white p-4 rounded shadow'>
-  <h2 class='font-bold text-xl'>Receipt</h2>
-  Phone: ${order.phone}<br>
-  Address: ${order.address}<br>
-  Payment: ${order.payment}<br>
-  Total: ₱${order.total}<br>
-  <div class='mt-2 bg-green-100 p-2 rounded'>SMS: Your order is ${status}</div>
-  <div class='mt-2'>Status: <span id='statusTxt'>${status}</span></div>
-  <button onclick="showPage('home')" class='mt-3 bg-blue-500 text-white px-3 rounded'>Home</button>
-  </div>`;
-  renderAdmin();
+showPage('receipt');
+receipt.innerHTML=`<div class='bg-white p-4 rounded shadow'>
+<h2 class='font-bold text-xl'>Receipt</h2>
+Phone: ${activeOrder.phone}<br>
+Address: ${activeOrder.address}<br>
+Payment: ${activeOrder.payment}<br>
+Total: ₱${activeOrder.total}<br>
+<div class='mt-2 bg-green-100 p-2 rounded'>SMS confirmation sent</div>
+<div class='mt-2'>Status: <span id='statusTxt'>${activeOrder.status}</span></div>
+<button onclick="showPage('home')" class='mt-3 bg-blue-500 text-white px-3 rounded'>Home</button>
+</div>`;
 }
 
-function simulateStatus(){
-  setTimeout(()=>updateStatus('Out for delivery'),4000);
-  setTimeout(()=>updateStatus('Delivered'),8000);
-}
-
-function updateStatus(s){
-  status=s;
-  const el=document.getElementById('statusTxt');
-  if(el) el.innerText=s;
-  renderAdmin();
-}
-
+/* ==============================
+   ADMIN DASHBOARD (MULTI ORDER)
+================================*/
 function renderAdmin(){
-  if(!order){adminContent.innerHTML='No order';return}
-  adminContent.innerHTML=`Phone:${order.phone}<br>Total:${order.total}<br>Status:${status}<br>
-  <button onclick="updateStatus('Preparing')" class='bg-blue-400 px-2 rounded'>Preparing</button>
-  <button onclick="updateStatus('Out for delivery')" class='bg-yellow-400 px-2 rounded'>Out</button>
-  <button onclick="updateStatus('Delivered')" class='bg-green-400 px-2 rounded'>Done</button>`;
+if(!orders.length){adminContent.innerHTML='No orders';return}
+
+adminContent.innerHTML='';
+orders.forEach(o=>{
+adminContent.innerHTML+=`<div class='bg-white p-3 mb-2 rounded shadow'>
+<b>${o.phone}</b><br>
+Total ₱${o.total}<br>
+Status: ${o.status}<br>
+<button onclick="updateStatus(${o.id},'Preparing')" class='bg-blue-300 px-2'>Preparing</button>
+<button onclick="updateStatus(${o.id},'Out for delivery')" class='bg-yellow-300 px-2'>Out</button>
+<button onclick="updateStatus(${o.id},'Delivered')" class='bg-green-300 px-2'>Done</button>
+</div>`;
+});
 }
+
+function updateStatus(id,s){
+const o=orders.find(x=>x.id===id);
+o.status=s;
+activeOrder=o;
+if(document.getElementById('statusTxt')) document.getElementById('statusTxt').innerText=s;
+sendSMS(o.phone,`NAP'S Restaurant: Your order is now ${s}`);
+renderAdmin();
+}
+
 </script>
 
 </body>
