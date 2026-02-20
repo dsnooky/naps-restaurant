@@ -1,10 +1,11 @@
 {
-  "name": "NAP'S Restaurant",
-  "short_name": "NAP'S",
-  "start_url": ".",
+  "name": "NAP'S Restaurant POS",
+  "short_name": "NAP'S POS",
+  "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#e63946",
+  "orientation": "portrait",
   "icons": [
     {
       "src": "icon-192.png",
