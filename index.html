@@ -1,240 +1,229 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>NAP'S Restaurant</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NAP'S Restaurant Ordering System</title>
+<style>
+body{font-family:Arial;margin:0;background:#f4f4f4}
+header{background:#e63946;color:#fff;padding:15px;text-align:center;font-size:22px}
+nav{display:flex;background:#333}
+nav button{flex:1;padding:12px;border:none;background:#333;color:#fff;cursor:pointer}
+nav button:hover{background:#555}
+.page{display:none;padding:20px}
+.active{display:block}
+.card{background:#fff;padding:15px;margin:10px;border-radius:10px;box-shadow:0 2px 6px rgba(0,0,0,.15)}
+button.primary{background:#e63946;color:#fff;border:none;padding:10px 15px;border-radius:6px;cursor:pointer}
+input,select{width:100%;padding:8px;margin:6px 0}
+.badge{padding:3px 8px;border-radius:6px;color:#fff;font-size:12px}
+.pending{background:#f4a261}
+.paid{background:#2a9d8f}
+.status{background:#457b9d}
+img.proof{width:120px;border-radius:6px}
+.notice{background:#fffae6;padding:10px;text-align:center}
+</style>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#e63946">
 </head>
-<body class="bg-gray-100">
+<body>
+<header>NAP'S Restaurant</header>
+<nav>
+<button onclick="showPage('menu')">Menu</button>
+<button onclick="showPage('cart')">Cart</button>
+<button onclick="showPage('track')">Track</button>
+<button onclick="showPage('admin')">Admin</button>
+</nav>
 
-<!-- NAVBAR -->
-<div class="bg-white shadow p-4 flex justify-between">
-  <h1 class="font-bold text-xl">NAP'S Restaurant</h1>
-  <div class="space-x-2">
-    <button onclick="showPage('home')" class="px-3 py-1 bg-blue-500 text-white rounded">Home</button>
-    <button onclick="showPage('menu')" class="px-3 py-1 bg-blue-500 text-white rounded">Menu</button>
-    <button onclick="showPage('cart')" class="px-3 py-1 bg-blue-500 text-white rounded">Cart (<span id="cartCount">0</span>)</button>
-    <button onclick="showPage('admin')" class="px-3 py-1 bg-gray-700 text-white rounded">Admin</button>
-  </div>
-</div>
-
-<!-- HOME -->
-<div id="home" class="p-8 text-center">
-  <h2 class="text-3xl font-bold mb-4">Welcome to NAP'S Restaurant</h2>
-  <p>Order your favorite Filipino meals online</p>
-  <button onclick="showPage('menu')" class="mt-4 px-6 py-2 bg-green-500 text-white rounded">Order Now</button>
-</div>
+<div id="notice"></div>
 
 <!-- MENU -->
-<div id="menu" class="hidden p-8 grid md:grid-cols-2 gap-4">
+<div id="menu" class="page active">
+<h2>Menu</h2>
+<div id="menuList"></div>
 </div>
 
 <!-- CART -->
-<div id="cart" class="hidden p-8 max-w-xl mx-auto">
-  <h2 class="text-2xl font-bold mb-2">Your Cart</h2>
-  <div id="cartItems"></div>
-  <h3 class="font-bold mt-2">Total: ₱<span id="total">0</span></h3>
+<div id="cart" class="page">
+<h2>Your Cart</h2>
+<div id="cartList"></div>
+<p><b>Total: ₱<span id="total">0</span></b></p>
 
-  <input id="phone" class="w-full border p-2 mt-3 rounded" placeholder="Phone number" />
-  <textarea id="address" class="w-full border p-2 mt-3 rounded" placeholder="Delivery address"></textarea>
+<label>Customer Phone</label>
+<input id="phone" placeholder="09xxxxxxxxx">
 
-  <div class="mt-3 space-x-2">
-    <button onclick="selectPayment('GCash')" id="gcashBtn" class="px-3 py-1 border rounded">GCash</button>
-    <button onclick="selectPayment('COD')" id="codBtn" class="px-3 py-1 border rounded">Cash on Delivery</button>
-  </div>
+<label>Delivery Address</label>
+<input id="address" placeholder="House / Street / Barangay">
 
-  <div id="gcashProofBox" class="hidden mt-3">
-  <label class="text-sm">Upload GCash payment screenshot</label>
-  <input type="file" id="gcashProof" accept="image/*" class="w-full border p-2 rounded" />
+<label>Payment</label>
+<select id="payment" onchange="toggleProof()">
+<option value="">Select</option>
+<option>GCash</option>
+<option>COD</option>
+</select>
+
+<div id="gcashBox" style="display:none">
+<p>Send payment to: <b>09XXXXXXXXX</b> (NAP'S Restaurant)</p>
+<label>Upload GCash Proof</label>
+<input type="file" id="proof" accept="image/*">
 </div>
 
-<button onclick="placeOrder()" class="mt-4 w-full bg-green-500 text-white p-2 rounded">Place Order</button>
+<button class="primary" onclick="placeOrder()">Place Order</button>
 </div>
 
-<!-- RECEIPT -->
-<div id="receipt" class="hidden p-8 max-w-xl mx-auto"></div>
+<!-- TRACK -->
+<div id="track" class="page">
+<h2>Track Order</h2>
+<input id="trackId" placeholder="Enter order id">
+<button onclick="trackOrder()">Track</button>
+<div id="trackResult"></div>
+</div>
 
 <!-- ADMIN -->
-<div id="admin" class="hidden p-8 max-w-xl mx-auto">
-  <h2 class="text-xl font-bold mb-3">Admin Panel</h2>
-  <div id="adminContent">No order</div>
+<div id="admin" class="page">
+<h2>Admin Panel</h2>
+<div id="adminOrders"></div>
 </div>
 
 <script>
-/* ==============================
-   CONFIGURATION (EDIT THESE)
-================================*/
-
-// ⭐ Example Philippine SMS API (Semaphore / Twilio etc)
-const SMS_API_URL = "https://api.semaphore.co/api/v4/messages"; // example
-const SMS_API_KEY = "YOUR_SMS_API_KEY"; // put real key
-
-// ⭐ GCash direct payment number (customer will manually send)
-const GCASH_NUMBER = "09XXXXXXXXX"; // replace with your GCash number
-const GCASH_NAME = "NAP'S Restaurant";
-
-/* ==============================
-   DATA
-================================*/
-
-let foods=[
-{id:1,name:"Chicken Inasal",price:120},
-{id:2,name:"Pork Sisig",price:150},
-{id:3,name:"Beef Tapa",price:140},
-{id:4,name:"Halo-Halo",price:90}
+const menu=[
+{name:'Burger',price:120},
+{name:'Fries',price:70},
+{name:'Fried Chicken',price:150},
+{name:'Spaghetti',price:130}
 ];
-
 let cart=[];
-let orders=[]; // ⭐ MULTI ORDER DATABASE
-let payment=null;
-let activeOrder=null;
-let status="Preparing";
 
-/* ==============================
-   MENU RENDER
-================================*/
-const menuDiv=document.getElementById('menu');
-foods.forEach(f=>{
-menuDiv.innerHTML+=`<div class='bg-white p-4 rounded shadow flex justify-between'>
-<div>${f.name}<br>₱${f.price}</div>
-<button onclick='addToCart(${f.id})' class='bg-blue-500 text-white px-3 rounded'>Add</button></div>`;
-});
-
-function showPage(p){
-['home','menu','cart','receipt','admin'].forEach(id=>document.getElementById(id).classList.add('hidden'));
-document.getElementById(p).classList.remove('hidden');
+function showPage(id){
+document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+document.getElementById(id).classList.add('active');
+if(id==='admin')renderAdmin();
 }
 
-function addToCart(id){
-const item=foods.find(f=>f.id===id);
-cart.push(item);
-document.getElementById('cartCount').innerText=cart.length;
+function renderMenu(){
+menuList.innerHTML='';
+menu.forEach((m,i)=>{
+menuList.innerHTML+=`<div class='card'>${m.name} - ₱${m.price}
+<button class='primary' onclick='addCart(${i})'>Add</button></div>`;
+});
+}
+
+function addCart(i){
+let item=cart.find(c=>c.name===menu[i].name);
+if(item)item.qty++;
+else cart.push({...menu[i],qty:1});
 renderCart();
 }
 
 function renderCart(){
-let div=document.getElementById('cartItems');
-div.innerHTML='';
-let total=0;
-cart.forEach(i=>{div.innerHTML+=`${i.name} - ₱${i.price}<br>`; total+=i.price});
-document.getElementById('total').innerText=total;
-}
-
-function selectPayment(p){
-payment=p;
-gcashBtn.classList.remove('bg-green-400');
-codBtn.classList.remove('bg-green-400');
-if(p==='GCash'){
- gcashBtn.classList.add('bg-green-400');
- document.getElementById('gcashProofBox').classList.remove('hidden');
-}else{
- codBtn.classList.add('bg-green-400');
- document.getElementById('gcashProofBox').classList.add('hidden');
-}
-}
-
-/* ==============================
-   SMS SENDING
-================================*/
-async function sendSMS(phone,message){
-try{
-await fetch(SMS_API_URL,{
-method:"POST",
-headers:{"Content-Type":"application/json"},
-body:JSON.stringify({apikey:SMS_API_KEY,number:phone,message})
+cartList.innerHTML='';
+let t=0;
+cart.forEach(c=>{
+t+=c.price*c.qty;
+cartList.innerHTML+=`<div>${c.name} x${c.qty}</div>`;
 });
-}catch(e){console.log("SMS failed",e)}
+total.innerText=t;
 }
 
-/* ==============================
-   ORDER FLOW
-================================*/
+function toggleProof(){
+gcashBox.style.display=payment.value==='GCash'?'block':'none';
+}
+
 function placeOrder(){
-const phone=document.getElementById('phone').value;
-const address=document.getElementById('address').value;
-const total=document.getElementById('total').innerText;
-if(!phone||!address||!payment){alert('Fill all fields');return}
+if(!cart.length)return alert('Cart empty');
+if(!phone.value||!address.value)return alert('Enter details');
+if(payment.value==='GCash'&&!proof.files.length)return alert('Upload proof');
 
-const proofFile = document.getElementById('gcashProof')?.files?.[0] || null;
-
-activeOrder={
-id:Date.now(),phone,address,payment,total,items:[...cart],status:"Preparing",paymentStatus: payment==='GCash'?'Pending':'Paid',proof: proofFile?URL.createObjectURL(proofFile):null};
-orders.push(activeOrder);
-
-if(payment==='GCash'){
-alert(`Please send payment to GCash number: ${GCASH_NUMBER} (${GCASH_NAME}). Then click OK after payment.`);
+let reader=new FileReader();
+reader.onload=function(){
+saveOrder(reader.result);
+};
+if(proof.files[0])reader.readAsDataURL(proof.files[0]);
+else saveOrder(null);
 }
 
-sendSMS(phone,`NAP'S Restaurant: Order received. Preparing.`);
+function saveOrder(img){
+let orders=JSON.parse(localStorage.getItem('orders')||'[]');
+let id=Date.now();
+orders.push({id,items:cart,total:total.innerText,phone:phone.value,address:address.value,payment:payment.value,proof:img,status:'Preparing',paymentStatus:payment.value==='GCash'?'Pending':'Paid'});
+localStorage.setItem('orders',JSON.stringify(orders));
 
-cart=[];
-renderCart();
-document.getElementById('cartCount').innerText=0;
-showReceipt();
-renderAdmin();
+if(img)notice.innerHTML="<div class='notice'>🔔 New GCash proof uploaded</div>";
+
+alert('Order placed! ID:'+id);
+cart=[];renderCart();
 }
 
-/* ==============================
-   RECEIPT
-================================*/
-function showReceipt(){
-showPage('receipt');
-receipt.innerHTML=`<div class='bg-white p-4 rounded shadow'>
-<h2 class='font-bold text-xl'>Receipt</h2>
-Phone: ${activeOrder.phone}<br>
-Address: ${activeOrder.address}<br>
-Payment: ${activeOrder.payment}<br>
-Total: ₱${activeOrder.total}<br>
-<div class='mt-2 bg-green-100 p-2 rounded'>SMS confirmation sent</div>
-<div class='mt-2'>Status: <span id='statusTxt'>${activeOrder.status}</span></div>
-<div class='mt-1'>Payment: <span id='payTxt'>${activeOrder.paymentStatus}</span></div>
-${activeOrder.proof?`<img src='${activeOrder.proof}' class='mt-2 rounded shadow'/>`:''}
-<button onclick="showPage('home')" class='mt-3 bg-blue-500 text-white px-3 rounded'>Home</button>
-</div>`;
+function trackOrder(){
+let orders=JSON.parse(localStorage.getItem('orders')||'[]');
+let o=orders.find(o=>o.id==trackId.value);
+if(!o)return trackResult.innerHTML='Not found';
+trackResult.innerHTML=`Status: <span class='badge status'>${o.status}</span>`;
 }
 
-/* ==============================
-   ADMIN DASHBOARD (MULTI ORDER)
-================================*/
 function renderAdmin(){
-if(!orders.length){adminContent.innerHTML='No orders';return}
-
-adminContent.innerHTML='';
-orders.forEach(o=>{
-adminContent.innerHTML+=`<div class='bg-white p-3 mb-2 rounded shadow'>
-<b>${o.phone}</b><br>
-Total ₱${o.total}<br>
+let orders=JSON.parse(localStorage.getItem('orders')||'[]');
+adminOrders.innerHTML='';
+orders.reverse().forEach(o=>{
+adminOrders.innerHTML+=`<div class='card'>
+<b>#${o.id}</b><br>
+${o.items.map(i=>i.name+' x'+i.qty).join('<br>')}<br>
+Payment: ${o.payment} <span class='badge ${o.paymentStatus==='Paid'?'paid':'pending'}'>${o.paymentStatus}</span><br>
 Status: ${o.status}<br>
-Payment: ${o.paymentStatus}<br>
-${o.proof?`<img src='${o.proof}' class='mt-1 rounded shadow'/>`:''}
-<button onclick="updateStatus(${o.id},'Preparing')" class='bg-blue-300 px-2'>Preparing</button>
-<button onclick="updateStatus(${o.id},'Out for delivery')" class='bg-yellow-300 px-2'>Out</button>
-<button onclick="updateStatus(${o.id},'Delivered')" class='bg-green-300 px-2'>Done</button>
-<button onclick="markPaid(${o.id})" class='bg-emerald-500 text-white px-2'>Mark Paid</button>
+${o.proof?`<img src='${o.proof}' class='proof'><br>`:''}
+<button onclick='markPaid(${o.id})'>Mark Paid</button>
+<button onclick='setStatus(${o.id},"Preparing")'>Preparing</button>
+<button onclick='setStatus(${o.id},"Out for delivery")'>Out</button>
+<button onclick='setStatus(${o.id},"Delivered")'>Done</button>
+<button onclick='printReceipt(${o.id})'>Print</button>
 </div>`;
 });
-}
-
-function updateStatus(id,s){
-const o=orders.find(x=>x.id===id);
-o.status=s;
-activeOrder=o;
-if(document.getElementById('statusTxt')) document.getElementById('statusTxt').innerText=s;
-sendSMS(o.phone,`NAP'S Restaurant: Your order is now ${s}`);
-renderAdmin();
 }
 
 function markPaid(id){
-const o=orders.find(x=>x.id===id);
-o.paymentStatus='Paid';
-activeOrder=o;
-if(document.getElementById('payTxt')) document.getElementById('payTxt').innerText='Paid';
-alert('Admin verified payment proof');
-renderAdmin();
+let orders=JSON.parse(localStorage.getItem('orders')||'[]');
+let o=orders.find(o=>o.id===id);
+if(o){o.paymentStatus='Paid';localStorage.setItem('orders',JSON.stringify(orders));alert('SMS: Payment verified for '+id);renderAdmin();}
 }
 
+function setStatus(id,s){
+let orders=JSON.parse(localStorage.getItem('orders')||'[]');
+let o=orders.find(o=>o.id===id);
+if(o){o.status=s;localStorage.setItem('orders',JSON.stringify(orders));renderAdmin();}
+}
+
+function printReceipt(id){
+let orders=JSON.parse(localStorage.getItem('orders')||'[]');
+let o=orders.find(o=>o.id===id);
+let w=window.open('','','width=300');
+w.document.write(`<body style='font-family:monospace;width:280px'>
+<h3 style='text-align:center'>NAP'S Restaurant</h3>
+Order #${o.id}<hr>
+${o.items.map(i=>i.name+' x'+i.qty+' ₱'+i.price*i.qty).join('<br>')}
+<hr>Total ₱${o.total}<br>${o.payment}<hr>Thank you</body>`);
+w.print();
+w.close();
+}
+
+renderMenu();
+// ⭐ Register service worker for PWA
+if('serviceWorker' in navigator){
+ navigator.serviceWorker.register('sw.js');
+}
 </script>
 
+<!-- ⭐ Install App Button -->
+<button id="installBtn" style="position:fixed;bottom:15px;right:15px;padding:12px;border:none;border-radius:50%;background:#e63946;color:#fff;font-size:18px">📱</button>
+
+<script>
+let deferredPrompt;
+window.addEventListener('beforeinstallprompt',e=>{
+ e.preventDefault();
+ deferredPrompt=e;
+});
+installBtn.onclick=async()=>{
+ if(!deferredPrompt)return alert('Install not available');
+ deferredPrompt.prompt();
+};
+</script>
 </body>
 </html>
