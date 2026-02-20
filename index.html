@@ -3,227 +3,122 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>NAP'S Restaurant Ordering System</title>
+<title>NAP'S Restaurant Offline POS</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#e63946">
 <style>
 body{font-family:Arial;margin:0;background:#f4f4f4}
 header{background:#e63946;color:#fff;padding:15px;text-align:center;font-size:22px}
 nav{display:flex;background:#333}
-nav button{flex:1;padding:12px;border:none;background:#333;color:#fff;cursor:pointer}
-nav button:hover{background:#555}
-.page{display:none;padding:20px}
+nav button{flex:1;padding:14px;border:none;background:#333;color:#fff;font-size:16px}
+.page{display:none;padding:15px}
 .active{display:block}
-.card{background:#fff;padding:15px;margin:10px;border-radius:10px;box-shadow:0 2px 6px rgba(0,0,0,.15)}
-button.primary{background:#e63946;color:#fff;border:none;padding:10px 15px;border-radius:6px;cursor:pointer}
-input,select{width:100%;padding:8px;margin:6px 0}
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.card{background:#fff;padding:20px;border-radius:12px;text-align:center;box-shadow:0 2px 6px rgba(0,0,0,.2);font-size:18px}
+button.primary{background:#e63946;color:#fff;border:none;padding:12px;border-radius:8px;font-size:16px;margin-top:8px}
+input{width:100%;padding:10px;margin:6px 0;font-size:16px}
+.orderCard{background:#fff;padding:12px;margin:8px;border-radius:10px}
 .badge{padding:3px 8px;border-radius:6px;color:#fff;font-size:12px}
 .pending{background:#f4a261}
 .paid{background:#2a9d8f}
-.status{background:#457b9d}
-img.proof{width:120px;border-radius:6px}
-.notice{background:#fffae6;padding:10px;text-align:center}
+.bigBtn{width:48%;padding:15px;font-size:18px;margin:1%}
+#installBtn{position:fixed;bottom:15px;right:15px;padding:15px;border:none;border-radius:50%;background:#e63946;color:#fff;font-size:20px}
 </style>
-<link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#e63946">
 </head>
 <body>
-<header>NAP'S Restaurant</header>
+<header>NAP'S Restaurant POS</header>
 <nav>
-<button onclick="showPage('menu')">Menu</button>
-<button onclick="showPage('cart')">Cart</button>
-<button onclick="showPage('track')">Track</button>
-<button onclick="showPage('admin')">Admin</button>
+<button onclick="showPage('pos')">POS</button>
+<button onclick="showPage('orders')">Orders</button>
+<button onclick="showPage('sales')">Sales</button>
 </nav>
 
-<div id="notice"></div>
-
-<!-- MENU -->
-<div id="menu" class="page active">
+<!-- POS -->
+<div id="pos" class="page active">
 <h2>Menu</h2>
-<div id="menuList"></div>
-</div>
+<div class="grid" id="menu"></div>
+<h2>Cart</h2>
+<div id="cart"></div>
+<h3>Total ₱<span id="total">0</span></h3>
 
-<!-- CART -->
-<div id="cart" class="page">
-<h2>Your Cart</h2>
-<div id="cartList"></div>
-<p><b>Total: ₱<span id="total">0</span></b></p>
-
-<label>Customer Phone</label>
-<input id="phone" placeholder="09xxxxxxxxx">
-
-<label>Delivery Address</label>
-<input id="address" placeholder="House / Street / Barangay">
-
-<label>Payment</label>
-<select id="payment" onchange="toggleProof()">
-<option value="">Select</option>
-<option>GCash</option>
-<option>COD</option>
-</select>
+<h3>Payment</h3>
+<button class="bigBtn" onclick="pay('Cash')">💵 Cash</button>
+<button class="bigBtn" onclick="pay('GCash')">📱 GCash</button>
 
 <div id="gcashBox" style="display:none">
-<p>Send payment to: <b>09540891929</b> (Snooky D.)</p>
-<label>Upload GCash Proof</label>
+<p>Receive payment then upload proof</p>
 <input type="file" id="proof" accept="image/*">
+<button class="primary" onclick="confirmGCash()">Confirm GCash</button>
+</div>
 </div>
 
-<button class="primary" onclick="placeOrder()">Place Order</button>
+<!-- ORDERS -->
+<div id="orders" class="page">
+<h2>Orders</h2>
+<div id="orderList"></div>
 </div>
 
-<!-- TRACK -->
-<div id="track" class="page">
-<h2>Track Order</h2>
-<input id="trackId" placeholder="Enter order id">
-<button onclick="trackOrder()">Track</button>
-<div id="trackResult"></div>
+<!-- SALES -->
+<div id="sales" class="page">
+<h2>Today's Sales</h2>
+<h1>₱<span id="salesTotal">0</span></h1>
+<button class="primary" onclick="closeDay()">Close Day</button>
 </div>
 
-<!-- ADMIN -->
-<div id="admin" class="page">
-<h2>Admin Panel</h2>
-<div id="adminOrders"></div>
-</div>
+<button id="installBtn">📱</button>
 
 <script>
-const menu=[
+const products=[
 {name:'Burger',price:120},
 {name:'Fries',price:70},
-{name:'Fried Chicken',price:150},
+{name:'Chicken',price:150},
 {name:'Spaghetti',price:130}
 ];
-let cart=[];
 
-function showPage(id){
-document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
-document.getElementById(id).classList.add('active');
-if(id==='admin')renderAdmin();
-}
+let cart=[];
+let pendingGCash=false;
+
+function showPage(id){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.getElementById(id).classList.add('active');renderOrders();renderSales();}
 
 function renderMenu(){
-menuList.innerHTML='';
-menu.forEach((m,i)=>{
-menuList.innerHTML+=`<div class='card'>${m.name} - ₱${m.price}
-<button class='primary' onclick='addCart(${i})'>Add</button></div>`;
-});
-}
+menu.innerHTML='';
+products.forEach((p,i)=>{
+menu.innerHTML+=`<div class='card' onclick='add(${i})'>${p.name}<br>₱${p.price}</div>`;
+});}
 
-function addCart(i){
-let item=cart.find(c=>c.name===menu[i].name);
-if(item)item.qty++;
-else cart.push({...menu[i],qty:1});
-renderCart();
-}
+function add(i){let item=cart.find(c=>c.name===products[i].name);if(item)item.qty++;else cart.push({...products[i],qty:1});renderCart();}
 
-function renderCart(){
-cartList.innerHTML='';
-let t=0;
-cart.forEach(c=>{
-t+=c.price*c.qty;
-cartList.innerHTML+=`<div>${c.name} x${c.qty}</div>`;
-});
-total.innerText=t;
-}
+function renderCart(){cart.innerHTML='';let t=0;cart.forEach(c=>{t+=c.price*c.qty;cart.innerHTML+=`<div>${c.name} x${c.qty}</div>`});total.innerText=t}
 
-function toggleProof(){
-gcashBox.style.display=payment.value==='GCash'?'block':'none';
-}
+function pay(type){if(!cart.length)return alert('Empty cart');
+if(type==='Cash')completeOrder('Cash',null);
+else{pendingGCash=true;gcashBox.style.display='block';}}
 
-function placeOrder(){
-if(!cart.length)return alert('Cart empty');
-if(!phone.value||!address.value)return alert('Enter details');
-if(payment.value==='GCash'&&!proof.files.length)return alert('Upload proof');
+function confirmGCash(){if(!proof.files.length)return alert('Upload proof');let r=new FileReader();r.onload=e=>completeOrder('GCash',e.target.result);r.readAsDataURL(proof.files[0]);}
 
-let reader=new FileReader();
-reader.onload=function(){
-saveOrder(reader.result);
-};
-if(proof.files[0])reader.readAsDataURL(proof.files[0]);
-else saveOrder(null);
-}
-
-function saveOrder(img){
-let orders=JSON.parse(localStorage.getItem('orders')||'[]');
-let id=Date.now();
-orders.push({id,items:cart,total:total.innerText,phone:phone.value,address:address.value,payment:payment.value,proof:img,status:'Preparing',paymentStatus:payment.value==='GCash'?'Pending':'Paid'});
+function completeOrder(payment,proofImg){let orders=JSON.parse(localStorage.getItem('orders')||'[]');let sales=JSON.parse(localStorage.getItem('sales')||'0');
+let totalVal=Number(total.innerText);
+orders.push({id:Date.now(),items:cart,total:totalVal,payment,proof:proofImg,status:'Done',paymentStatus:'Paid'});
 localStorage.setItem('orders',JSON.stringify(orders));
+sales+=totalVal;localStorage.setItem('sales',JSON.stringify(sales));
+printReceipt(orders[orders.length-1]);
+cart=[];renderCart();gcashBox.style.display='none';alert('Order saved');}
 
-if(img)notice.innerHTML="<div class='notice'>🔔 New GCash proof uploaded</div>";
+function renderOrders(){let orders=JSON.parse(localStorage.getItem('orders')||'[]');orderList.innerHTML='';orders.slice().reverse().forEach(o=>{orderList.innerHTML+=`<div class='orderCard'>#${o.id}<br>₱${o.total} ${o.payment}</div>`});}
 
-alert('Order placed! ID:'+id);
-cart=[];renderCart();
-}
+function renderSales(){salesTotal.innerText=JSON.parse(localStorage.getItem('sales')||'0');}
 
-function trackOrder(){
-let orders=JSON.parse(localStorage.getItem('orders')||'[]');
-let o=orders.find(o=>o.id==trackId.value);
-if(!o)return trackResult.innerHTML='Not found';
-trackResult.innerHTML=`Status: <span class='badge status'>${o.status}</span>`;
-}
+function closeDay(){if(!confirm('Close day?'))return;localStorage.setItem('orders','[]');localStorage.setItem('sales','0');renderOrders();renderSales();}
 
-function renderAdmin(){
-let orders=JSON.parse(localStorage.getItem('orders')||'[]');
-adminOrders.innerHTML='';
-orders.reverse().forEach(o=>{
-adminOrders.innerHTML+=`<div class='card'>
-<b>#${o.id}</b><br>
-${o.items.map(i=>i.name+' x'+i.qty).join('<br>')}<br>
-Payment: ${o.payment} <span class='badge ${o.paymentStatus==='Paid'?'paid':'pending'}'>${o.paymentStatus}</span><br>
-Status: ${o.status}<br>
-${o.proof?`<img src='${o.proof}' class='proof'><br>`:''}
-<button onclick='markPaid(${o.id})'>Mark Paid</button>
-<button onclick='setStatus(${o.id},"Preparing")'>Preparing</button>
-<button onclick='setStatus(${o.id},"Out for delivery")'>Out</button>
-<button onclick='setStatus(${o.id},"Delivered")'>Done</button>
-<button onclick='printReceipt(${o.id})'>Print</button>
-</div>`;
-});
-}
-
-function markPaid(id){
-let orders=JSON.parse(localStorage.getItem('orders')||'[]');
-let o=orders.find(o=>o.id===id);
-if(o){o.paymentStatus='Paid';localStorage.setItem('orders',JSON.stringify(orders));alert('SMS: Payment verified for '+id);renderAdmin();}
-}
-
-function setStatus(id,s){
-let orders=JSON.parse(localStorage.getItem('orders')||'[]');
-let o=orders.find(o=>o.id===id);
-if(o){o.status=s;localStorage.setItem('orders',JSON.stringify(orders));renderAdmin();}
-}
-
-function printReceipt(id){
-let orders=JSON.parse(localStorage.getItem('orders')||'[]');
-let o=orders.find(o=>o.id===id);
-let w=window.open('','','width=300');
-w.document.write(`<body style='font-family:monospace;width:280px'>
-<h3 style='text-align:center'>NAP'S Restaurant</h3>
-Order #${o.id}<hr>
-${o.items.map(i=>i.name+' x'+i.qty+' ₱'+i.price*i.qty).join('<br>')}
-<hr>Total ₱${o.total}<br>${o.payment}<hr>Thank you</body>`);
-w.print();
-w.close();
-}
+function printReceipt(o){let w=window.open('','','width=300');w.document.write(`<body style='font-family:monospace;width:260px'>NAP'S Restaurant<hr>${o.items.map(i=>i.name+' x'+i.qty+' '+i.price*i.qty).join('<br>')}<hr>Total ₱${o.total}<br>${o.payment}<hr>Thank you</body>`);w.print();w.close();}
 
 renderMenu();
-// ⭐ Register service worker for PWA
-if('serviceWorker' in navigator){
- navigator.serviceWorker.register('sw.js');
-}
-</script>
 
-<!-- ⭐ Install App Button -->
-<button id="installBtn" style="position:fixed;bottom:15px;right:15px;padding:12px;border:none;border-radius:50%;background:#e63946;color:#fff;font-size:18px">📱</button>
+// PWA install
+let deferredPrompt;window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e});installBtn.onclick=()=>{if(deferredPrompt)deferredPrompt.prompt()};
 
-<script>
-let deferredPrompt;
-window.addEventListener('beforeinstallprompt',e=>{
- e.preventDefault();
- deferredPrompt=e;
-});
-installBtn.onclick=async()=>{
- if(!deferredPrompt)return alert('Install not available');
- deferredPrompt.prompt();
-};
+// service worker
+if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js');}
 </script>
 </body>
 </html>
