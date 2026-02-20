@@ -44,7 +44,12 @@
     <button onclick="selectPayment('COD')" id="codBtn" class="px-3 py-1 border rounded">Cash on Delivery</button>
   </div>
 
-  <button onclick="placeOrder()" class="mt-4 w-full bg-green-500 text-white p-2 rounded">Place Order</button>
+  <div id="gcashProofBox" class="hidden mt-3">
+  <label class="text-sm">Upload GCash payment screenshot</label>
+  <input type="file" id="gcashProof" accept="image/*" class="w-full border p-2 rounded" />
+</div>
+
+<button onclick="placeOrder()" class="mt-4 w-full bg-green-500 text-white p-2 rounded">Place Order</button>
 </div>
 
 <!-- RECEIPT -->
@@ -65,9 +70,10 @@
 const SMS_API_URL = "https://api.semaphore.co/api/v4/messages"; // example
 const SMS_API_KEY = "YOUR_SMS_API_KEY"; // put real key
 
-// ⭐ GCash mock payment link (replace with real PayMongo / Xendit link)
-const GCASH_NUMBER = "09540891929";
-const GCASH_NAME = "Snooky D.";
+// ⭐ GCash direct payment number (customer will manually send)
+const GCASH_NUMBER = "09XXXXXXXXX"; // replace with your GCash number
+const GCASH_NAME = "NAP'S Restaurant";
+
 /* ==============================
    DATA
 ================================*/
@@ -119,8 +125,13 @@ function selectPayment(p){
 payment=p;
 gcashBtn.classList.remove('bg-green-400');
 codBtn.classList.remove('bg-green-400');
-if(p==='GCash') gcashBtn.classList.add('bg-green-400');
-else codBtn.classList.add('bg-green-400');
+if(p==='GCash'){
+ gcashBtn.classList.add('bg-green-400');
+ document.getElementById('gcashProofBox').classList.remove('hidden');
+}else{
+ codBtn.classList.add('bg-green-400');
+ document.getElementById('gcashProofBox').classList.add('hidden');
+}
 }
 
 /* ==============================
@@ -145,12 +156,14 @@ const address=document.getElementById('address').value;
 const total=document.getElementById('total').innerText;
 if(!phone||!address||!payment){alert('Fill all fields');return}
 
+const proofFile = document.getElementById('gcashProof')?.files?.[0] || null;
+
 activeOrder={
-id:Date.now(),phone,address,payment,total,items:[...cart],status:"Preparing"};
+id:Date.now(),phone,address,payment,total,items:[...cart],status:"Preparing",paymentStatus: payment==='GCash'?'Pending':'Paid',proof: proofFile?URL.createObjectURL(proofFile):null};
 orders.push(activeOrder);
 
 if(payment==='GCash'){
-window.open(GCASH_PAYMENT_LINK,'_blank');
+alert(`Please send payment to GCash number: ${GCASH_NUMBER} (${GCASH_NAME}). Then click OK after payment.`);
 }
 
 sendSMS(phone,`NAP'S Restaurant: Order received. Preparing.`);
@@ -175,6 +188,8 @@ Payment: ${activeOrder.payment}<br>
 Total: ₱${activeOrder.total}<br>
 <div class='mt-2 bg-green-100 p-2 rounded'>SMS confirmation sent</div>
 <div class='mt-2'>Status: <span id='statusTxt'>${activeOrder.status}</span></div>
+<div class='mt-1'>Payment: <span id='payTxt'>${activeOrder.paymentStatus}</span></div>
+${activeOrder.proof?`<img src='${activeOrder.proof}' class='mt-2 rounded shadow'/>`:''}
 <button onclick="showPage('home')" class='mt-3 bg-blue-500 text-white px-3 rounded'>Home</button>
 </div>`;
 }
@@ -191,9 +206,12 @@ adminContent.innerHTML+=`<div class='bg-white p-3 mb-2 rounded shadow'>
 <b>${o.phone}</b><br>
 Total ₱${o.total}<br>
 Status: ${o.status}<br>
+Payment: ${o.paymentStatus}<br>
+${o.proof?`<img src='${o.proof}' class='mt-1 rounded shadow'/>`:''}
 <button onclick="updateStatus(${o.id},'Preparing')" class='bg-blue-300 px-2'>Preparing</button>
 <button onclick="updateStatus(${o.id},'Out for delivery')" class='bg-yellow-300 px-2'>Out</button>
 <button onclick="updateStatus(${o.id},'Delivered')" class='bg-green-300 px-2'>Done</button>
+<button onclick="markPaid(${o.id})" class='bg-emerald-500 text-white px-2'>Mark Paid</button>
 </div>`;
 });
 }
@@ -204,6 +222,15 @@ o.status=s;
 activeOrder=o;
 if(document.getElementById('statusTxt')) document.getElementById('statusTxt').innerText=s;
 sendSMS(o.phone,`NAP'S Restaurant: Your order is now ${s}`);
+renderAdmin();
+}
+
+function markPaid(id){
+const o=orders.find(x=>x.id===id);
+o.paymentStatus='Paid';
+activeOrder=o;
+if(document.getElementById('payTxt')) document.getElementById('payTxt').innerText='Paid';
+alert('Admin verified payment proof');
 renderAdmin();
 }
 
